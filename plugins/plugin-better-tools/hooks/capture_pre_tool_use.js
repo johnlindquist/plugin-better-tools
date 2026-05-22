@@ -9,6 +9,8 @@ const PLUGIN_VERSION = "0.1.0";
 const HOOK_NAME = "capture_pre_tool_use";
 const MAX_STDIN_BYTES = intEnv("BETTER_TOOLS_MAX_STDIN_BYTES", 4 * 1024 * 1024);
 const MAX_RECORD_BYTES = intEnv("BETTER_TOOLS_MAX_RECORD_BYTES", 256 * 1024);
+const MAX_INDEX_PATTERNS = intEnv("BETTER_TOOLS_MAX_INDEX_PATTERNS", 2000);
+const MAX_INDEX_INPUT_HASHES = intEnv("BETTER_TOOLS_MAX_INDEX_INPUT_HASHES", 10000);
 const RETENTION_DAYS = intEnv("BETTER_TOOLS_RETENTION_DAYS", 90);
 const MAX_TOTAL_BYTES = intEnv("BETTER_TOOLS_MAX_BYTES", 250 * 1000 * 1000);
 const SECRET_KEY_RE = /(api[_-]?key|token|secret|password|passwd|authorization|bearer|client[_-]?secret|cookie|credential)/i;
@@ -180,6 +182,16 @@ function commandFromInput(input) {
   return typeof input.command === "string" ? input.command : typeof input.cmd === "string" ? input.cmd : null;
 }
 
+function normalizeCommand(command) {
+  return command
+    .replace(/"[^"]*"/g, '"<str>"')
+    .replace(/'[^']*'/g, "'<str>'")
+    .replace(/\/Users\/[^ ]+/g, "/<path>")
+    .replace(/\b[0-9a-f]{7,64}\b/g, "<hash>")
+    .replace(/\b\d+\b/g, "<num>")
+    .slice(0, 220);
+}
+
 function trimRecord(record) {
   if (Buffer.byteLength(JSON.stringify(record), "utf8") <= MAX_RECORD_BYTES) return record;
   record.tool.input_truncated = true;
@@ -273,6 +285,55 @@ function buildError(error, rawMeta, dataRoot) {
   };
 }
 
+function incrementMap(map, key, limit) {
+  if (!key) return;
+  if (Object.prototype.hasOwnProperty.call(map, key)) {
+    map[key] += 1;
+    return;
+  }
+  if (Object.keys(map).length < limit) {
+    map[key] = 1;
+  }
+}
+
+function updateCompactIndex(dataRoot, record) {
+  if (!record || record.kind !== "tool_call") return;
+  try {
+    const indexPath = path.join(dataRoot.root, "indexes", "tool-index.json");
+    mkdirp(path.dirname(indexPath));
+    let index = {};
+    try {
+      index = JSON.parse(fs.readFileSync(indexPath, "utf8"));
+    } catch (_) {}
+    index.schema_version = 1;
+    index.generated_at = nowIso();
+    index.window = "incremental";
+    index.records = Number(index.records || 0) + 1;
+    index.top_tools = index.top_tools || {};
+    index.top_projects = index.top_projects || {};
+    index.input_hash_counts = index.input_hash_counts || {};
+    index.command_patterns = index.command_patterns || {};
+    index.examples = index.examples || {};
+
+    const toolName = record.tool && record.tool.name ? record.tool.name : "unknown";
+    const projectName = record.project && record.project.project_name ? record.project.project_name : "unknown";
+    incrementMap(index.top_tools, toolName, 200);
+    incrementMap(index.top_projects, projectName, 500);
+    incrementMap(index.input_hash_counts, record.tool.input_hash, MAX_INDEX_INPUT_HASHES);
+
+    const command = record.tool && record.tool.command ? record.tool.command.split("\n")[0].slice(0, 220) : "";
+    if (command) {
+      const pattern = normalizeCommand(command);
+      incrementMap(index.command_patterns, pattern, MAX_INDEX_PATTERNS);
+      if (!index.examples[pattern]) index.examples[pattern] = command;
+    }
+    index.unique_tool_inputs = Object.keys(index.input_hash_counts).length;
+    index.duplicate_tool_input_calls = Object.values(index.input_hash_counts)
+      .reduce((sum, count) => sum + Math.max(0, Number(count) - 1), 0);
+    fs.writeFileSync(indexPath, `${JSON.stringify(index, null, 2)}\n`, "utf8");
+  } catch (_) {}
+}
+
 function maybePrune(dataRoot) {
   try {
     const stateDir = path.join(dataRoot.root, "state");
@@ -323,9 +384,11 @@ async function main() {
     writeLocator(dataRoot);
     const rawMeta = await readStdinLimited();
     const day = dayStamp();
-    if (rawMeta.truncated) throw new Error(`stdin exceeded ${MAX_STDIN_BYTES} bytes`);
     try {
-      appendJsonl(path.join(dataRoot.root, "events", `${day}.jsonl`), buildRecord(JSON.parse(rawMeta.raw || "{}"), rawMeta, dataRoot));
+      if (rawMeta.truncated) throw new Error(`stdin exceeded ${MAX_STDIN_BYTES} bytes`);
+      const record = buildRecord(JSON.parse(rawMeta.raw || "{}"), rawMeta, dataRoot);
+      appendJsonl(path.join(dataRoot.root, "events", `${day}.jsonl`), record);
+      updateCompactIndex(dataRoot, record);
     } catch (error) {
       appendJsonl(path.join(dataRoot.root, "errors", `${day}.jsonl`), buildError(error, rawMeta, dataRoot));
     }

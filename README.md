@@ -2,13 +2,13 @@
 
 Better Tools is a Codex plugin that observes supported tool calls through a `PreToolUse` hook and turns that local corpus into practical tooling advice.
 
-The hook writes a capped daily JSONL spool under `$PLUGIN_DATA/events/` and malformed payloads under `$PLUGIN_DATA/errors/`. Raw JSONL is not intended to become model context. `scripts/better_tools.py` produces compact deduped summaries and `indexes/tool-index.json`, so thousands of duplicate tool calls collapse into counts, fingerprints, normalized command patterns, and a few examples.
+The hook writes a capped daily JSONL spool under `$PLUGIN_DATA/events/` and malformed payloads under `$PLUGIN_DATA/errors/`. Raw JSONL is not intended to become model context. The hook updates `indexes/tool-index.json` automatically on each captured call, and `scripts/better_tools.py` can regenerate richer compact summaries on demand. Thousands of duplicate tool calls collapse into counts, fingerprints, normalized command patterns, and a few examples.
 
 ## What It Bundles
 
 - `plugins/plugin-better-tools/hooks/hooks.json`: registers the `PreToolUse` hook.
 - `plugins/plugin-better-tools/hooks/capture_pre_tool_use.js`: low-risk capture hook that redacts common secret-like values, truncates large records, appends JSONL, and exits successfully without blocking tools.
-- `plugins/plugin-better-tools/scripts/better_tools.py`: local analyzer for `doctor`, `index`, `summary`, `patterns`, `blindspots`, `agents-md`, `report`, and `export`.
+- `plugins/plugin-better-tools/scripts/better_tools.py`: local analyzer for `doctor`, `index`, `summary`, `patterns`, `blindspots`, `agents-md`, `report`, and `export`. The `index` command can regenerate the compact index if needed.
 - `plugins/plugin-better-tools/skills/better-tools/SKILL.md`: Codex skill for tool optimization, tool blindspot analysis, new tool proposals, and AGENTS.md guidance.
 
 ## Install From GitHub
@@ -70,7 +70,7 @@ python3 scripts/better_tools.py summary --days 30
 python3 scripts/better_tools.py agents-md --days 30
 ```
 
-`index` writes a deduped compact index to:
+The capture hook updates a deduped compact index at:
 
 ```text
 $PLUGIN_DATA/indexes/tool-index.json

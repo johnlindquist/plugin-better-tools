@@ -27,6 +27,7 @@ errors/
 indexes/
 reports/
 active-data-root.json
+memories/conversations/
 
 # Local/editor files
 .env
@@ -34,4 +35,3 @@ active-data-root.json
 *.log
 .idea/
 .vscode/
-

@@ -42,6 +42,7 @@ class BetterToolsTests(unittest.TestCase):
             self.assertEqual(result.stdout, "")
             event_files = list((Path(tmp) / "events").glob("*.jsonl"))
             self.assertEqual(len(event_files), 1)
+            self.assertTrue((Path(tmp) / "indexes" / "tool-index.json").exists())
             content = event_files[0].read_text()
             self.assertIn("grep -R TODO", content)
             self.assertNotIn("should-not-leak", content)

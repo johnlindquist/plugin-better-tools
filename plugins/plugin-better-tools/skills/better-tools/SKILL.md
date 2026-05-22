@@ -15,7 +15,7 @@ The companion `PreToolUse` hook stores a rolling corpus under `$PLUGIN_DATA` whe
 ~/.codex/plugin-data/plugin-better-tools/
 ```
 
-The raw store is a capped daily JSONL spool under `events/`. Do not load raw JSONL into the conversation by default. Use `better_tools.py` to generate deduped summaries and `indexes/tool-index.json`, which collapse duplicate calls by input hash and normalized command pattern.
+The raw store is a capped daily JSONL spool under `events/`. Do not load raw JSONL into the conversation by default. The hook updates `indexes/tool-index.json` automatically, and `better_tools.py index` can regenerate a compact deduped index. Use the index and summaries because they collapse duplicate calls by input hash and normalized command pattern.
 
 ## Workflow
 
