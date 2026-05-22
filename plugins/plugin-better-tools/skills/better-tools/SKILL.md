@@ -43,7 +43,17 @@ find .. -maxdepth 2 -name AGENTS.md -o -name package.json -o -name pyproject.tom
 
 3. If the user asks for researched tool recommendations, browse current official docs or primary sources for the candidate tools before recommending them.
 
-4. Classify each recommendation:
+4. For unfamiliar CLI tools already present in the corpus or current project, inspect their local capabilities before recommending replacements or wrappers. Prefer harmless help/version probes:
+
+```bash
+<tool> --help
+<tool> help
+<tool> --version
+```
+
+Capture only the relevant options and subcommands. Do not run mutating commands just to learn a tool.
+
+5. Classify each recommendation:
 
 - `AGENTS.md`: a concise instruction that would have improved observed agent behavior.
 - `script`: a repo-local command that compresses a repeated shell workflow.
@@ -51,7 +61,7 @@ find .. -maxdepth 2 -name AGENTS.md -o -name package.json -o -name pyproject.tom
 - `MCP/tool`: a capability gap where structured APIs would beat shell scraping or ad hoc browser work.
 - `defer`: a weak signal that needs more logged events.
 
-5. Guide the user through one improvement at a time. For each proposal, include:
+6. Guide the user through one improvement at a time. For each proposal, include:
 
 - observed evidence from the corpus
 - why the current tool behavior is wasteful or risky
