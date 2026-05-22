@@ -84,6 +84,8 @@ When running manually outside Codex, the analyzer locates data in this order:
 4. `~/.codex/plugin-data/plugin-better-tools/active-data-root.json`
 5. `~/.codex/plugin-data/plugin-better-tools`
 
+If the locator points at a deleted temporary directory, the analyzer ignores it and falls back to the stable home directory.
+
 ## Local Checks
 
 ```bash

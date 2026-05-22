@@ -24,7 +24,9 @@ def locate_data_dir(override: Optional[str] = None) -> Path:
         try:
             data = json.loads(locator.read_text())
             if data.get("data_root"):
-                return Path(data["data_root"]).expanduser()
+                located = Path(data["data_root"]).expanduser()
+                if located.exists():
+                    return located
         except Exception:
             pass
     return HOME_FALLBACK
